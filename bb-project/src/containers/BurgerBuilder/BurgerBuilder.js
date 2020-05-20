@@ -1,5 +1,5 @@
-import React, { Component } from 'react';
-import { connect } from 'react-redux';
+import React, { useState, useEffect ,useCallback } from 'react';
+import { connect , useDispatch , useSelector } from 'react-redux';
 import Aux from '../../hoc/Aux/Aux';
 import Burger from '../../components/Burger/Burger';
 import BurgerControls from '../../components/Burger/BuildControls/BuildControls';
@@ -11,37 +11,46 @@ import withErrorHandler from '../../hoc/withErrorHandler/withErrorHandler';
 import * as actions from '../../store/actions/index';
 
 
-export class BurgerBuilder extends Component{
-    state={
-        //purchasable is used to unlock/enabled or disabled the ORDER button.
-        // purchasable:false,
-        //to show or hide the modal
-        purchasing:false,
-        //when loading is true i want to show the spinner and on false orderSummary.
-        // loading:false,
-        // error:false
-       
-    }
+export const BurgerBuilder = props => {
+    const [purchasing,setPurchasing] = useState(false);
 
-    //i can execute this axios.get call here in redux(setState na use kr ke hum action dispatch kar skte hai which updates our ingredients in the redux store)
-    //or the better way of doing is using action-creators by redux-thunk.
-    componentDidMount(){
-        // console.log(this.props);
-        this.props.onInitIngredients();
-        // axios.get('https://burger-builder-ea9c2.firebaseio.com/ingredients.json')
-        // .then( response => {
-        //     this.setState({ingredients: response.data});
-        // })
-        // .catch(error =>{
-        //     this.setState({error:true})
-        // });
-    }
+    //dispatches an action to a redux store.
+    const dispatch = useDispatch();
+
+
+      const ings = useSelector(state => {return state.burgerBuilder.ingredients;});
+      const price = useSelector(state => state.burgerBuilder.totalPrice);
+      const error = useSelector(state => state.burgerBuilder.error);
+      const isAuthenticated = useSelector(state => state.auth.token !== null);
+    
+      const onIngredientsAdded = ingName => dispatch(actions.addIngredient(ingName));
+      const onIngredientsRemoved = ingName =>
+        dispatch(actions.removeIngredient(ingName));
+      const onInitIngredients = useCallback(
+        () => dispatch(actions.initIngredients()),
+        [dispatch]
+      );
+      const onInitPurchase = () => dispatch(actions.purchaseInit());
+      const onSetAuthRedirectPath = path =>
+        dispatch(actions.setAuthRedirectPath(path));
+    
+
+
+    // const onIngredientsAdded = (ingName) => dispatch(actions.addIngredient(ingName));
+    // const onIngredientsRemoved = (ingName) => dispatch(actions.removeIngredient(ingName));
+    // const onInitIngredients = () => dispatch(actions.initIngredients());
+    // const onInitPurchase= () => dispatch(actions.purchaseInit());
+    // const onSetAuthRedirectPath = (path) => dispatch(actions.setAuthRedirectPath(path));
+
+    useEffect(() => {
+        onInitIngredients();
+    },[onInitIngredients]);
 
 //I want array of values from ingredients objects and need to reduce it to a single value(Sum)
 //sum is constantly updated in reduce function by each element(value) of the the array
 //if sum>0 then set purchasable to true or else false.
 //now it returns either true or false.
-updatePurchaseState=(ingredients)=>{
+const updatePurchaseState=(ingredients)=>{
     
     const sum=Object.keys(ingredients)
     .map(igKey=>{
@@ -55,81 +64,29 @@ updatePurchaseState=(ingredients)=>{
 };
 
 
-
-/* addIngredientsHandler=(type)=>{
-    const oldCount=this.state.ingredients[type];
-    const updatedCount=oldCount+1;
-    const updatedIngredients={
-        ...this.state.ingredients
-    };
-    updatedIngredients[type]=updatedCount;
-    const priceAddition=INGREDIENT_PRICES[type];
-    const oldPrice=this.state.totalPrice;
-    const newPrice=oldPrice+priceAddition;
-    this.setState({totalPrice:newPrice,ingredients:updatedIngredients});
-    this.updatePurchaseState(updatedIngredients);
-
-}
-
-removeIngredientsHandler=(type)=>{
-    const oldCount=this.state.ingredients[type];
-    if(oldCount<=0){
-        return;
-    }
-    const updatedCount=oldCount-1;
-    const updatedIngredients={
-        ...this.state.ingredients
-    };
-    updatedIngredients[type]=updatedCount;
-    const priceDeduction=INGREDIENT_PRICES[type];
-    const oldPrice=this.state.totalPrice;
-    const newPrice=oldPrice-priceDeduction;
-    this.setState({totalPrice:newPrice,ingredients:updatedIngredients});
-    this.updatePurchaseState(updatedIngredients);
-
-}
-*/
-
-purchaseHandler=()=>{
-    if(this.props.isAuthenticated){
-        this.setState({purchasing:true})
+const purchaseHandler=()=>{
+    if(isAuthenticated){
+        setPurchasing(true);
     }else{
-        this.props.onSetAuthRedirectPath('/checkout');
-        this.props.history.push('/auth');
+        onSetAuthRedirectPath('/checkout');
+        props.history.push('/auth');
     }
    
 }
 
-purchaseCancelHandler=()=>{
-    this.setState({purchasing:false})
+const purchaseCancelHandler=()=>{
+    setPurchasing(false);
 }
 
-purchaseContinueHandler=()=>{
+const purchaseContinueHandler=()=>{
     // // alert('You can Continue...!')
-    this.props.onInitPurchase();
-    this.props.history.push('/checkout');
-
-    /*const queryParams = [];
-        for (let i in this.state.ingredients) {
-            queryParams.push(encodeURIComponent(i) + '=' + encodeURIComponent(this.state.ingredients[i]));
-        }
-
-        queryParams.push('price=' + this.state.totalPrice);
-
-        const queryString = queryParams.join('&');
-        
-
-        this.props.history.push({
-            pathname: '/checkout',
-            search: '?' + queryString
-        });
-        */
+    onInitPurchase();
+    props.history.push('/checkout');
 }
 
-    render(){
         //tell which button should be enabled or disabled. 
         const disabledInfo={
-            ...this.props.ings
+            ...ings
         };
         for(let key in disabledInfo){
             disabledInfo[key]=disabledInfo[key]<=0
@@ -138,39 +95,36 @@ purchaseContinueHandler=()=>{
 
         let orderSummary=null;
         //will render spinner for a fraction of second when we load app for the first time..
-        let burger = this.props.error ? <p>Ingredients can't be loaded!</p> : <Spinner />;
+        let burger = error ? <p>Ingredients can't be loaded!</p> : <Spinner />;
 
-        if(this.props.ings){
+        if(ings) {
             burger=(
                 <Aux>
-                    <Burger ingredients={this.props.ings}/>
+                    <Burger ingredients={ings}/>
                     <BurgerControls 
-                        ingredientsAdd={this.props.onIngredientsAdded} 
-                        ingredientsRemove={this.props.onIngredientsRemoved}
+                        ingredientsAdd={onIngredientsAdded} 
+                        ingredientsRemove={onIngredientsRemoved}
                         disabled={disabledInfo}
-                        purchasable={this.updatePurchaseState(this.props.ings)}
-                        displayOrder={this.purchaseHandler}
-                        isAuth={this.props.isAuthenticated}
-                        price={this.props.price}/>
+                        purchasable={updatePurchaseState(ings)}
+                        displayOrder={purchaseHandler}
+                        isAuth={isAuthenticated}
+                        price={price}/>
                 </Aux>
             );
             orderSummary=<OrderSummary 
-            ingredients={this.props.ings}
-            orderCancelled={this.purchaseCancelHandler}
-            orderContinue={this.purchaseContinueHandler}
-            price={this.props.price}/>;
+            ingredients={ings}
+            orderCancelled={purchaseCancelHandler}
+            orderContinue={purchaseContinueHandler}
+            price={price}/>;
         }
-
-        //if true then show spinner..
-        // if(this.state.loading){
-        //     orderSummary=<Spinner />
-        // }
 
         return(
             <Aux>
                 {/*OrderSummary is re0rendending again agian bcz it uses setState (states that are changed),so to avoid this
                 if the model is you want to display then only order summary should be re-renderrd else not */}
-                <Modal show={this.state.purchasing} modalClosed={this.purchaseCancelHandler}>
+                <Modal 
+                show={purchasing} 
+                modalClosed={purchaseCancelHandler}>
                     {orderSummary}
                 </Modal>
                 {burger}
@@ -178,29 +132,8 @@ purchaseContinueHandler=()=>{
             </Aux>    
         );
     }
-}
 
 
-const mapStateToProps = state => {
-    return {
-        ings:state.burgerBuilder.ingredients,
-        price:state.burgerBuilder.totalPrice,
-        error:state.burgerBuilder.error,
-        isAuthenticated:state.auth.token !== null
-    };
-}
-
- const mapDispatchToProps = dispatch => {
-    return{
-        onIngredientsAdded : (ingName) => dispatch(actions.addIngredient(ingName)),
-        onIngredientsRemoved : (ingName) => dispatch(actions.removeIngredient(ingName)),
-        onInitIngredients : () => dispatch(actions.initIngredients()),
-        onInitPurchase: () => dispatch(actions.purchaseInit()),
-        onSetAuthRedirectPath : (path) => dispatch(actions.setAuthRedirectPath(path))
-    }
-
- }
-
-export default connect(mapStateToProps,mapDispatchToProps)(withErrorHandler(BurgerBuilder,axios));
+export default withErrorHandler(BurgerBuilder,axios);
 
 
